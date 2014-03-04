@@ -3,22 +3,35 @@
  */
 function onOpen() {
   DocumentApp.getUi().createMenu('LaTeX')
-      .addItem('Insert LaTeX expression', 'latexDialog')
-      .addItem('Edit LaTeX expression (work in progress)', 'editFormula')
+      .addItem('Insert/edit LaTeX expression', 'latexDialog')
       .addItem('What is this?', 'latexHelp')
       .addToUi();
+}
+
+function latestExpression() {
+  return ScriptProperties.getProperty('gLatexLatest') || '\\left\\{\\begin{matrix}1x &+& 2x & =3\\\\ -x &+&y  & =7\\end{matrix}\\right.';
 }
 
 /**
  * Shows a sidebar where LaTeX can be entered.
  */
 function latexDialog() {
-  // Get the last added formula, or use the fallback if none exists.
-  var fallback = '\\large\\left\\{\\begin{matrix}1x &+& 2x & =3\\\\ -x &+&y  & =7\\end{matrix}\\right.';
-  var LaTeX = ScriptProperties.getProperty('latex') || fallback;
+  // Get the formula from any gLaTeX image being edited, or fall back to the latest used expression.
+  var imageprefix = 'http://www.texify.com/img/%5CHuge%5C%21';
+  var linkprefix = 'http://www.texify.com/%5CHuge%5C%21';
+  var suffix = '.gif';
+
+  var selection = DocumentApp.getActiveDocument().getSelection();
+  if (selection != null) {
+    var link = decodeURI(selection.getSelectedElements()[0].getElement().getAttributes()[DocumentApp.Attribute.LINK_URL]);
+    var formula = link.substring(linkprefix.length, link.length);
+  }
+  else {
+    formula = latestExpression();
+  }
 
   var app = UiApp.createApplication().setTitle('LaTeX editor');
-  var area = app.createTextArea().setName('formula').setText(LaTeX).setWidth('100%').setHeight('300px');
+  var area = app.createTextArea().setName('formula').setText(formula).setWidth('100%').setHeight('300px');
   app.add(area);
 
   var saveFormula = app.createServerHandler('saveFormula');
@@ -35,26 +48,32 @@ function saveFormula(eventInfo) {
   var imageprefix = 'http://www.texify.com/img/%5CHuge%5C%21';
   var linkprefix = 'http://www.texify.com/%5CHuge%5C%21';
   var suffix = '.gif';
+
+  // Check if there is something selected, that should be replaced.
+  var selection = DocumentApp.getActiveDocument().getSelection();
+  if (selection != null) {
+    // We will lose the position of the cursor when removing the selected elements, so we record a new position for the cursor here.
+    var position = DocumentApp.getActiveDocument().newPosition(selection.getRangeElements()[0].getElement().getParent(), 1);
+    // Now, go ahead and remove all the selected elements.
+    var elements = selection.getRangeElements();
+    for (var i = 0; i < elements.length; i++) {
+      elements[i].getElement().removeFromParent();
+    }
+    // Set the new cursor position, as is nothing happened.
+    DocumentApp.getActiveDocument().setCursor(position);
+  }
+
+  // Insert the image at the cursor.
+  var cursor = DocumentApp.getActiveDocument().getCursor();
+  var image = UrlFetchApp.fetch(encodeURI(imageprefix + eventInfo.parameter.formula + suffix)).getBlob();
+  // We link the image to the web service generating the image. This is not only to be nice,
+  // it is also how the expression is saved in raw format -- allowing us to open and edit it.
   var attributes = {};
   attributes[DocumentApp.Attribute.LINK_URL] = encodeURI(linkprefix + eventInfo.parameter.formula);
 
-  var cursor = DocumentApp.getActiveDocument().getCursor();
-  
-  if (cursor) {
-  } else {
-    DocumentApp.getActiveDocument().getSelection().getSelectedElements()[0].getElement().removeFromParent();
-    DocumentApp.getActiveDocument().getCursor();
-//    DocumentApp.getUi().alert('Cannot find a cursor in the document.');
-    cursor = DocumentApp.getActiveDocument().getCursor();
-  }
-  // Attempt to insert an image at the cursor position. If insertion returns null,
-  // then the cursor's containing element doesn't allow text insertions.
-  var response = UrlFetchApp.fetch(encodeURI(imageprefix + eventInfo.parameter.formula + suffix));
-  var image = response.getBlob();
-//  Logger.log(encodeURI(imageprefix + eventInfo.parameter.formula + suffix));
-
-  // Actual insertion of LaTeX image happens here.
   cursor.insertInlineImage(image).setAttributes(attributes);
+  
+  return UiApp.getActiveApplication().close();
 }
 
 // Displays a popup with help.
@@ -67,81 +86,11 @@ function latexHelp() {
 
 }
 
-// Opens a selected formula for editing. Kind of.
-function editFormula() {
-  var fragment = 'http://latex.codecogs.com/gif.latex?';
-  var attributes = {};
-  attributes[DocumentApp.Attribute.LINK_URL] = encodeURI(fragment + ScriptProperties.getProperty('latex'));
-  var selection = DocumentApp.getActiveDocument().getSelection().getSelectedElements()[0].getElement();
-  var formula = selection.getAttributes()[DocumentApp.Attribute.LINK_URL];
-  if (formula == null) {
-    
-  }
-  else {
-    formula = decodeURI(formula.substring(fragment.length, formula.length));
-  }
-
-  var app = UiApp.createApplication().setTitle('LaTeX editor');
-  var area = app.createTextArea().setName('formula').setText(formula).setWidth('100%').setHeight('300px');
-  app.add(area);
-
-  var updateFormula = app.createServerHandler('updateFormula');
-  updateFormula.addCallbackElement(area);
-  app.add(app.createButton('Update expression', updateFormula));
-
-  DocumentApp.getUi().showSidebar(app);
-
-  
-//  selection.setAttributes(attributes)
-//  debug(formula);
-}
-
-/**
- * Inserts the parsed LaTeX experssion to the document.
- */
-function updateFormula(eventInfo) {
-  saveFormula(eventInfo);
-  return UiApp.getActiveApplication();
-
-  var cursor = DocumentApp.getActiveDocument().getCursor();
-  if (cursor) {
-    // Attempt to insert an image at the cursor position. If insertion returns null,
-    // then the cursor's containing element doesn't allow text insertions.
-    var url = UrlFetchApp.fetch(encodeURI('http://latex.codecogs.com/gif.latex?' + eventInfo.parameter.formula));
-    // This 'code' thing is an attempt to store the LaTeX expression with the
-    // document element, so it can be edited later on. Work in progress.
-    var code = {};
-    code[DocumentApp.Attribute.CODE] = eventInfo.parameter.formula;
-    // Actual insertion of LaTeX image happens here.
-    var element = cursor.insertInlineImage(url.getBlob()).setAttributes(code);
-  } else {
-    DocumentApp.getUi().alert('Cannot find a cursor in the document.');
-  }
-}
-
 // (For development only.)
 function dev() {
-  var formula = 'x^2';
-  var app = UiApp.createApplication().setTitle('Dev');
-  var area = app.createTextArea().setName('formula').setId('formula').setText(formula).setWidth('100%').setHeight('300px');
-  app.add(area);
-
-  var devHandler = app.createServerHandler('devHandler');
-  devHandler.addCallbackElement(area);
-  app.add(app.createButton('Update formula', devHandler));
-  
-  var image = app.createImage('http://www.mathwarehouse.com/quadratic/images/quadratic-formula-example.gif');
-  var image = app.createHTML('<a href="http://dn.se/"><img src="http://www.mathwarehouse.com/quadratic/images/quadratic-formula-example.gif" />(image)</a>');
-//  var anchor = app.createAnchor(image, true, 'http://www.mathwarehouse.com/quadratic/images/quadratic-formula-example.gif');
-  app.add(image);
-
-  DocumentApp.getUi().showSidebar(app);
 }
 
 function devHandler(eventInfo) {
-  var app = UiApp.getActiveApplication();
-  app.getElementById('formula').setText('hazza');
-  return app;
 }
 
 // (For development only.)
