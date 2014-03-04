@@ -32,9 +32,11 @@ function latexDialog() {
  * Inserts the parsed LaTeX experssion to the document.
  */
 function saveFormula(eventInfo) {
-  var fragment = 'http://latex.codecogs.com/gif.latex?';
+  var imageprefix = 'http://www.texify.com/img/%5CHuge%5C%21';
+  var linkprefix = 'http://www.texify.com/%5CHuge%5C%21';
+  var suffix = '.gif';
   var attributes = {};
-  attributes[DocumentApp.Attribute.LINK_URL] = encodeURI(fragment + eventInfo.parameter.formula);
+  attributes[DocumentApp.Attribute.LINK_URL] = encodeURI(linkprefix + eventInfo.parameter.formula);
 
   var cursor = DocumentApp.getActiveDocument().getCursor();
   
@@ -45,13 +47,14 @@ function saveFormula(eventInfo) {
 //    DocumentApp.getUi().alert('Cannot find a cursor in the document.');
     cursor = DocumentApp.getActiveDocument().getCursor();
   }
-    // Attempt to insert an image at the cursor position. If insertion returns null,
-    // then the cursor's containing element doesn't allow text insertions.
-    var url = UrlFetchApp.fetch(encodeURI(fragment + eventInfo.parameter.formula));
-    // This 'code' thing is an attempt to store the LaTeX expression with the
-    // document element, so it can be edited later on. Work in progress.
-    // Actual insertion of LaTeX image happens here.
-    var element = cursor.insertInlineImage(url.getBlob()).setAttributes(attributes);
+  // Attempt to insert an image at the cursor position. If insertion returns null,
+  // then the cursor's containing element doesn't allow text insertions.
+  var response = UrlFetchApp.fetch(encodeURI(imageprefix + eventInfo.parameter.formula + suffix));
+  var image = response.getBlob();
+//  Logger.log(encodeURI(imageprefix + eventInfo.parameter.formula + suffix));
+
+  // Actual insertion of LaTeX image happens here.
+  cursor.insertInlineImage(image).setAttributes(attributes);
 }
 
 // Displays a popup with help.
