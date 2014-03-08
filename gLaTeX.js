@@ -8,6 +8,9 @@ function onOpen() {
       .addToUi();
 }
 
+/**
+ * Fetches the last entered LaTeX expression, or uses a fallback.
+ */
 function latestExpression() {
   return ScriptProperties.getProperty('gLatexLatest') || '\\left\\{\\begin{matrix}1x &+& 2x & =3\\\\ -x &+&y  & =7\\end{matrix}\\right.';
 }
