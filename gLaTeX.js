@@ -5,14 +5,70 @@ function onOpen() {
   DocumentApp.getUi().createMenu('LaTeX')
       .addItem('Insert/edit LaTeX expression', 'latexDialog')
       .addItem('What is this?', 'latexHelp')
+      .addItem('Settings (alpha)','latexSettings')
       .addToUi();
+}
+
+
+/**
+ * Fetches the current LaTeX expression display size, or uses a fallback.
+ */
+function latexFontSize()
+{
+  return PropertiesService.getUserProperties().getProperty('gLatexDefaultFontSize') || 'Huge';
+}
+
+
+/**
+ * Shows a sidebar where LaTeX settings can be changed.
+ */
+function latexSettings() {
+  // Change the settings for the script 
+  // Options:    Default size of outputted latex
+  // Possible latex settings: tiny, small, normal, large, Large, LARGE, huge, Huge
+  
+  var app = UiApp.createApplication().setTitle('LaTeX Settings');
+  
+  //Default Size Setting
+  var lbSize = app.createListBox(false).setId('lbDefaultFontSize').setName('defaultFontSize');
+  lbSize.addItem('tiny');
+  lbSize.addItem('small');
+  lbSize.addItem('normal');
+  lbSize.addItem('large');
+  lbSize.addItem('Large');
+  lbSize.addItem('LARGE');
+  lbSize.addItem('huge');
+  lbSize.addItem('Huge');
+  
+  app.add(app.createLabel("Default Formula Size"));
+  app.add(lbSize);
+  
+  var saveSettings = app.createServerHandler('saveSettings');
+  saveSettings.addCallbackElement(lbSize);
+  
+  app.add(app.createButton('Save Settings', saveSettings));
+  
+  DocumentApp.getUi().showSidebar(app);
+}
+
+/**
+ * Save setting changes to the script parameters.
+ */
+function saveSettings(eventInfo) {
+  
+  var selectedFontSize = eventInfo.parameter.defaultFontSize;
+  
+  var userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('gLatexDefaultFontSize', selectedFontSize);
+  
+  return UiApp.getActiveApplication().close();
 }
 
 /**
  * Fetches the last entered LaTeX expression, or uses a fallback.
  */
 function latestExpression() {
-  return ScriptProperties.getProperty('gLatexLatest') || '\\left\\{\\begin{matrix}1x &+& 2x & =3\\\\ -x &+&y  & =7\\end{matrix}\\right.';
+  return PropertiesService.getUserProperties().getProperty('gLatexLatest') || '\\left\\{\\begin{matrix}1x &+& 2x & =3\\\\ -x &+&y  & =7\\end{matrix}\\right.';
 }
 
 /**
@@ -20,8 +76,9 @@ function latestExpression() {
  */
 function latexDialog() {
   // Get the formula from any gLaTeX image being edited, or fall back to the latest used expression.
-  var imageprefix = 'http://www.texify.com/img/%5CHuge%5C%21';
-  var linkprefix = 'http://www.texify.com/%5CHuge%5C%21';
+  var fontSize = latexFontSize();
+  var imageprefix = 'http://www.texify.com/img/%5C'+fontSize+'%5C%21';
+  var linkprefix = 'http://www.texify.com/%5C'+fontSize+'%5C%21';
   var suffix = '.gif';
 
   var selection = DocumentApp.getActiveDocument().getSelection();
@@ -48,8 +105,9 @@ function latexDialog() {
  * Inserts the parsed LaTeX experssion to the document.
  */
 function saveFormula(eventInfo) {
-  var imageprefix = 'http://www.texify.com/img/%5CHuge%5C%21';
-  var linkprefix = 'http://www.texify.com/%5CHuge%5C%21';
+  var fontSize = latexFontSize();
+  var imageprefix = 'http://www.texify.com/img/%5C'+fontSize+'%5C%21';
+  var linkprefix = 'http://www.texify.com/%5C'+fontSize+'%5C%21';
   var suffix = '.gif';
 
   // Check if there is something selected, that should be replaced.
@@ -69,6 +127,7 @@ function saveFormula(eventInfo) {
   // Insert the image at the cursor.
   var cursor = DocumentApp.getActiveDocument().getCursor();
   var formula = eventInfo.parameter.formula
+  PropertiesService.getUserProperties().setProperty('gLatexLatest', formula); //!!
   var image = UrlFetchApp.fetch(encodeURI(imageprefix + formula.replace('\n', ' ') + suffix)).getBlob();
   // We link the image to the web service generating the image. This is not only to be nice,
   // it is also how the expression is saved in raw format -- allowing us to open and edit it.
